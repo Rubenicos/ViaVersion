@@ -41,6 +41,7 @@ import com.viaversion.viaversion.api.minecraft.item.Item;
 import com.viaversion.viaversion.api.minecraft.item.data.Consumable1_21_2;
 import com.viaversion.viaversion.api.minecraft.item.data.DamageResistant;
 import com.viaversion.viaversion.api.minecraft.item.data.Enchantments;
+import com.viaversion.viaversion.api.minecraft.item.data.Equippable;
 import com.viaversion.viaversion.api.minecraft.item.data.FoodProperties1_20_5;
 import com.viaversion.viaversion.api.minecraft.item.data.FoodProperties1_21_2;
 import com.viaversion.viaversion.api.minecraft.item.data.Instrument1_20_5;
@@ -73,6 +74,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<ClientboundPacket1_21, ServerboundPacket1_21_2, Protocol1_21To1_21_2> {
@@ -578,6 +580,91 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
             }
             return trim;
         });
+
+        final CompoundTag tag = dataContainer.get(StructuredDataKey.CUSTOM_DATA);
+        if (tag != null) {
+            updateComponents(dataContainer, tag.getCompoundTag("components"));
+        }
+    }
+
+    public static final Map<String, Integer> SLOTS = Map.of(
+        "mainhand", 0,
+        "feet", 1,
+        "legs", 2,
+        "head", 4,
+        "chest", 3,
+        "offhand", 5,
+        "body", 6,
+        "saddle", 7
+    );
+
+    private static void updateComponents(final StructuredDataContainer data, final CompoundTag componentsTag) {
+        if (componentsTag == null) {
+            return;
+        }
+
+        final StringTag itemModel = componentsTag.getStringTag("minecraft:item_model");
+        if (itemModel != null) {
+            data.set(StructuredDataKey.ITEM_MODEL, itemModel.getValue());
+        }
+
+        if (componentsTag.get("minecraft:equippable") instanceof CompoundTag value) {
+            int equipmentSlot = 0;
+            if (value.contains("slot")) {
+                equipmentSlot = SLOTS.get(value.getString("slot").toLowerCase());
+            }
+
+            Holder<SoundEvent> soundEvent = null;
+            final Tag equipSoundTag = value.get("equip_sound");
+            if (equipSoundTag instanceof StringTag stringTag) {
+                soundEvent = Holder.of(new SoundEvent(identifierFromTag(stringTag), null));
+            } else if (equipSoundTag instanceof CompoundTag compoundTag) {
+                final String soundId = identifierFromTag(compoundTag.getStringTag("sound_id"));
+                final Float range = compoundTag.getFloat("range");
+                soundEvent = Holder.of(new SoundEvent(soundId, range));
+            } else {
+                soundEvent = Holder.of(new SoundEvent("minecraft:item.armor.equip_generic", null));
+            }
+
+            data.set(StructuredDataKey.EQUIPPABLE, new Equippable(
+                equipmentSlot,
+                soundEvent,
+                value.getString("model"),
+                value.getString("camera_overlay"),
+                holderSetFromTag(value, "allowed_entities"),
+                value.getBoolean("dispensable", true),
+                value.getBoolean("swappable", true),
+                value.getBoolean("damage_on_hurt", true)
+            ));
+        }
+    }
+
+    private static String identifierFromTag(final StringTag tag) {
+        final String value = tag.getValue();
+        if (!Key.isValid(value)) {
+            throw new IllegalArgumentException("Invalid identifier: " + value);
+        }
+        return value;
+    }
+
+    private static HolderSet holderSetFromTag(final CompoundTag tag, final String name) {
+        final Tag value = tag.get(name);
+        if (value instanceof StringTag stringTag) {
+            return HolderSet.of(stringTag.getValue());
+        } else if (value instanceof ListTag<?> listTag) {
+            final ListTag<StringTag> identifiers = (ListTag<StringTag>) listTag;
+            final int[] ids = new int[identifiers.size()];
+            for (int i = 0; i < identifiers.size(); i++) {
+                final String identifier = identifiers.get(i).getValue();
+                final int id = Protocol1_21To1_21_2.MAPPINGS.getEntityMappings().id(identifier);
+                if (id != -1) {
+                    ids[i] = id;
+                }
+            }
+            return HolderSet.of(ids);
+        } else {
+            return null;
+        }
     }
 
     public static void downgradeItemData(final Item item) {
