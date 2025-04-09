@@ -40,4 +40,11 @@ public final class SoundEventType extends HolderType<SoundEvent> {
         Types.STRING.write(buffer, value.identifier());
         Types.OPTIONAL_FLOAT.write(buffer, value.fixedRange());
     }
+
+    public static final class OptionalSoundEventType extends OptionalHolderType<SoundEvent> {
+
+        public OptionalSoundEventType() {
+            super(Types.SOUND_EVENT);
+        }
+    }
 }

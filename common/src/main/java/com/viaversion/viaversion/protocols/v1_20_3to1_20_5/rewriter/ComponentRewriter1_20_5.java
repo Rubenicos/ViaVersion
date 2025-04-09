@@ -121,14 +121,14 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
         register(StructuredDataKey.MAX_STACK_SIZE, this::maxStackSizeToTag, this::maxStackSizeFromTag);
         register(StructuredDataKey.MAX_DAMAGE, this::maxDamageToTag, this::maxDamageFromTag);
         register(StructuredDataKey.DAMAGE, this::damageToTag, this::damageFromTag);
-        register(StructuredDataKey.UNBREAKABLE, this::unbreakableToTag, this::unbreakableFromTag);
+        register(StructuredDataKey.UNBREAKABLE1_20_5, this::unbreakableToTag, this::unbreakableFromTag);
         register(StructuredDataKey.CUSTOM_NAME, this::customNameToTag, this::customNameFromTag);
         register(StructuredDataKey.ITEM_NAME, this::itemNameToTag, this::itemNameFromTag);
         register(StructuredDataKey.LORE, this::loreToTag, this::loreFromTag);
         register(StructuredDataKey.RARITY, this::rarityToTag, this::rarityFromTag);
-        register(StructuredDataKey.ENCHANTMENTS, this::enchantmentsToTag, this::enchantmentsFromTag);
-        register(StructuredDataKey.CAN_PLACE_ON, this::canPlaceOnToTag, this::canPlaceOnFromTag);
-        register(StructuredDataKey.CAN_BREAK, this::canBreakToTag, this::canBreakFromTag);
+        register(StructuredDataKey.ENCHANTMENTS1_20_5, this::enchantmentsToTag, this::enchantmentsFromTag);
+        register(StructuredDataKey.CAN_PLACE_ON1_20_5, this::canPlaceOnToTag, this::canPlaceOnFromTag);
+        register(StructuredDataKey.CAN_BREAK1_20_5, this::canBreakToTag, this::canBreakFromTag);
         register(StructuredDataKey.ATTRIBUTE_MODIFIERS1_20_5, this::attributeModifiersToTag, this::attributeModifiersFromTag);
         register(StructuredDataKey.CUSTOM_MODEL_DATA1_20_5, this::customModelDataToTag, this::customModelDataFromTag);
         register(StructuredDataKey.HIDE_ADDITIONAL_TOOLTIP, this::hideAdditionalTooltipToTag, this::hideAdditionalTooltipFromTag);
@@ -139,9 +139,9 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
         register(StructuredDataKey.INTANGIBLE_PROJECTILE, this::intangibleProjectileToTag, this::intangibleProjectileFromTag);
         register(StructuredDataKey.FOOD1_20_5, this::foodToTag, this::foodFromTag);
         register(StructuredDataKey.FIRE_RESISTANT, this::fireResistantToTag, this::fireResistantFromTag);
-        register(StructuredDataKey.TOOL, this::toolToTag, this::toolFromTag);
-        register(StructuredDataKey.STORED_ENCHANTMENTS, this::storedEnchantmentsToTag, this::storedEnchantmentsFromTag);
-        register(StructuredDataKey.DYED_COLOR, this::dyedColorToTag, this::dyedColorFromTag);
+        register(StructuredDataKey.TOOL1_20_5, this::toolToTag, this::toolFromTag);
+        register(StructuredDataKey.STORED_ENCHANTMENTS1_20_5, this::storedEnchantmentsToTag, this::storedEnchantmentsFromTag);
+        register(StructuredDataKey.DYED_COLOR1_20_5, this::dyedColorToTag, this::dyedColorFromTag);
         register(StructuredDataKey.MAP_COLOR, this::mapColorToTag, this::mapColorFromTag);
         register(StructuredDataKey.MAP_ID, this::mapIdToTag, this::mapIdFromTag);
         register(StructuredDataKey.MAP_DECORATIONS, this::mapDecorationsToTag, this::mapDecorationsFromTag);
@@ -247,7 +247,7 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
         if (!data.isEmpty()) {
             final CompoundTag components;
             try {
-                components = toTag(connection, data, false);
+                components = toTag(connection, data);
             } catch (final Exception e) {
                 if (!Via.getConfig().isSuppressConversionWarnings()) {
                     protocol.getLogger().log(Level.WARNING, "Error writing components in show_item!", e);
@@ -258,7 +258,7 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
         }
     }
 
-    public CompoundTag toTag(final UserConnection connection, final Map<StructuredDataKey<?>, StructuredData<?>> data, final boolean empty) {
+    public CompoundTag toTag(final UserConnection connection, final Map<StructuredDataKey<?>, StructuredData<?>> data) {
         final CompoundTag tag = new CompoundTag();
         for (final Map.Entry<StructuredDataKey<?>, StructuredData<?>> entry : data.entrySet()) {
             final StructuredDataKey<?> key = entry.getKey();
@@ -273,12 +273,8 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
 
             final StructuredData<?> value = entry.getValue();
             if (value.isEmpty()) {
-                if (empty) {
-                    // Theoretically not needed here, but we'll keep it for consistency
-                    tag.put("!" + identifier, new CompoundTag());
-                    continue;
-                }
-                throw new IllegalArgumentException("Empty structured data: " + identifier);
+                tag.put("!" + identifier, new CompoundTag());
+                continue;
             }
 
             //noinspection unchecked
@@ -303,11 +299,19 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
         return list;
     }
 
-    public StructuredData<?> readFromTag(final UserConnection connection, final String identifier, final Tag tag) {
+    private StructuredData<?> readFromTag(final UserConnection connection, String identifier, final Tag tag) {
+        final boolean removed = identifier.startsWith("!");
+        if (removed) {
+            identifier = identifier.substring(1);
+        }
         final int id = protocol.getMappingData().getDataComponentSerializerMappings().mappedId(identifier);
         Preconditions.checkArgument(id != -1, "Unknown data component: %s", identifier);
         final StructuredDataKey<?> key = structuredDataType.key(id);
-        return readFromTag(connection, key, id, tag);
+        if (removed) {
+            return StructuredData.empty(key, id);
+        } else {
+            return readFromTag(connection, key, id, tag);
+        }
     }
 
     protected <T> StructuredData<T> readFromTag(final UserConnection connection, final StructuredDataKey<T> key, final int id, final Tag tag) {
@@ -1561,7 +1565,7 @@ public class ComponentRewriter1_20_5<C extends ClientboundPacketType> extends Js
             tag.putInt("count", 1);
         }
         final Map<StructuredDataKey<?>, StructuredData<?>> components = item.dataContainer().data();
-        final CompoundTag componentsTag = toTag(connection, components, true);
+        final CompoundTag componentsTag = toTag(connection, components);
         if (!componentsTag.isEmpty()) {
             tag.put("components", componentsTag);
         }

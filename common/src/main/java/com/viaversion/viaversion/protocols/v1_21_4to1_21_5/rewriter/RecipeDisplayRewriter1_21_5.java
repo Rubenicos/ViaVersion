@@ -15,31 +15,24 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.viaversion.viaversion.rewriter;
+package com.viaversion.viaversion.protocols.v1_21_4to1_21_5.rewriter;
 
+import com.viaversion.viaversion.api.minecraft.item.data.ArmorTrimPattern;
 import com.viaversion.viaversion.api.protocol.Protocol;
 import com.viaversion.viaversion.api.protocol.packet.ClientboundPacketType;
-import com.viaversion.viaversion.rewriter.text.ComponentRewriterBase;
-import com.viaversion.viaversion.rewriter.text.JsonNBTComponentRewriter;
-import com.viaversion.viaversion.rewriter.text.NBTComponentRewriter;
+import com.viaversion.viaversion.api.protocol.packet.PacketWrapper;
+import com.viaversion.viaversion.rewriter.RecipeDisplayRewriter;
 
-/**
- * @deprecated use {@link JsonNBTComponentRewriter} or {@link NBTComponentRewriter}
- */
-@Deprecated(forRemoval = true)
-public abstract class ComponentRewriter<C extends ClientboundPacketType> extends JsonNBTComponentRewriter<C> {
+public class RecipeDisplayRewriter1_21_5<C extends ClientboundPacketType> extends RecipeDisplayRewriter<C> {
 
-    protected ComponentRewriter(final Protocol<C, ?, ?, ?> protocol, final ReadType type) {
-        super(protocol, type == ReadType.JSON ? ComponentRewriterBase.ReadType.JSON : ComponentRewriterBase.ReadType.NBT);
+    public RecipeDisplayRewriter1_21_5(final Protocol<C, ?, ?, ?> protocol) {
+        super(protocol);
     }
 
-    public void registerOpenScreen(final C packetType) {
-        super.registerOpenScreen1_14(packetType);
-    }
-
-    public enum ReadType {
-
-        JSON,
-        NBT
+    @Override
+    protected void handleSmithingTrimSlotDisplay(final PacketWrapper wrapper) {
+        handleSlotDisplay(wrapper); // Base
+        handleSlotDisplay(wrapper); // Material
+        wrapper.passthrough(ArmorTrimPattern.TYPE1_21_5); // Pattern
     }
 }
