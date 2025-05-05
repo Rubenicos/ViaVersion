@@ -605,7 +605,7 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
         "saddle", 7
     );
 
-    private static void updateComponents(final StructuredDataContainer data, final CompoundTag componentsTag) {
+    public static void updateComponents(final StructuredDataContainer data, final CompoundTag componentsTag) {
         if (componentsTag == null) {
             return;
         }
@@ -633,7 +633,7 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
                 soundEvent = Holder.of(new SoundEvent("minecraft:item.armor.equip_generic", null));
             }
 
-            data.set(StructuredDataKey.EQUIPPABLE, new Equippable(
+            data.set(StructuredDataKey.EQUIPPABLE1_21_2, new Equippable(
                 equipmentSlot,
                 soundEvent,
                 value.getString("model"),

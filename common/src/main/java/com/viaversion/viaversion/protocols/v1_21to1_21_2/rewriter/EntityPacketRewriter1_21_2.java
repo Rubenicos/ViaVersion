@@ -21,6 +21,8 @@ import com.viaversion.nbt.tag.CompoundTag;
 import com.viaversion.viaversion.api.connection.UserConnection;
 import com.viaversion.viaversion.api.data.entity.EntityTracker;
 import com.viaversion.viaversion.api.minecraft.RegistryEntry;
+import com.viaversion.viaversion.api.minecraft.data.StructuredDataContainer;
+import com.viaversion.viaversion.api.minecraft.data.StructuredDataKey;
 import com.viaversion.viaversion.api.minecraft.entities.EntityType;
 import com.viaversion.viaversion.api.minecraft.entities.EntityTypes1_21_2;
 import com.viaversion.viaversion.api.minecraft.entitydata.EntityData;
@@ -550,11 +552,20 @@ public final class EntityPacketRewriter1_21_2 extends EntityRewriter<Clientbound
         for (final EntityData data : dataList) {
             final Object value = data.value();
             if (value instanceof Item item) {
-                entityData.add(new EntityData(data.id(), data.dataType(), item.copy()));
+                entityData.add(new EntityData(data.id(), data.dataType(), updateItemData(item.copy())));
             } else {
                 entityData.add(new EntityData(data.id(), data.dataType(), value));
             }
         }
+    }
+
+    public static Item updateItemData(final Item item) {
+        final StructuredDataContainer dataContainer = item.dataContainer();
+        final CompoundTag tag = dataContainer.get(StructuredDataKey.CUSTOM_DATA);
+        if (tag != null) {
+            BlockItemPacketRewriter1_21_2.updateComponents(dataContainer, tag.getCompoundTag("components"));
+        }
+        return item;
     }
 
     private EntityType entityTypeFromBoatType(final int boatType) {
