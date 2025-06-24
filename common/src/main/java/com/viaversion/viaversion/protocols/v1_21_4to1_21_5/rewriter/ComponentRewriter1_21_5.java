@@ -21,16 +21,19 @@ import com.viaversion.nbt.tag.CompoundTag;
 import com.viaversion.nbt.tag.ListTag;
 import com.viaversion.nbt.tag.StringTag;
 import com.viaversion.nbt.tag.Tag;
+import com.viaversion.viaversion.api.Via;
 import com.viaversion.viaversion.api.connection.UserConnection;
 import com.viaversion.viaversion.api.minecraft.data.StructuredDataKey;
 import com.viaversion.viaversion.protocols.v1_21_4to1_21_5.Protocol1_21_4To1_21_5;
 import com.viaversion.viaversion.protocols.v1_21to1_21_2.packet.ClientboundPacket1_21_2;
 import com.viaversion.viaversion.rewriter.text.JsonNBTComponentRewriter;
 import com.viaversion.viaversion.util.SerializerVersion;
+import com.viaversion.viaversion.util.StringUtil;
 import com.viaversion.viaversion.util.TagUtil;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static com.viaversion.viaversion.util.TagUtil.getNamespacedCompoundTag;
@@ -109,16 +112,6 @@ public final class ComponentRewriter1_21_5 extends JsonNBTComponentRewriter<Clie
         handleEnchantments(componentsTag, "enchantments");
         handleEnchantments(componentsTag, "stored_enchantments");
 
-        // Usual item handling
-        final CompoundTag useRemainder = TagUtil.getNamespacedCompoundTag(componentsTag, "use_remainder");
-        if (useRemainder != null) {
-            handleShowItem(connection, useRemainder);
-        }
-        handleContainerContents(connection, componentsTag);
-        handleItemArrayContents(connection, componentsTag, "bundle_contents");
-        handleItemArrayContents(connection, componentsTag, "charged_projectiles");
-        handleWrittenBookContents(connection, componentsTag);
-
         // NO MORE SNBT IN TEXT COMPONENTS
         updateUglyJson(componentsTag, connection);
 
@@ -195,7 +188,18 @@ public final class ComponentRewriter1_21_5 extends JsonNBTComponentRewriter<Clie
 
             clickEventTag.putInt("page", page);
         } else if (action.equals("run_command") || action.equals("suggest_command")) {
-            clickEventTag.put("command", clickEventTag.getStringTag("value"));
+            final String value = clickEventTag.getString("value");
+            final StringBuilder command = new StringBuilder();
+            for (int i = 0; i < value.length(); i++) {
+                final char c = value.charAt(i);
+                if (c != '§' && c >= ' ' && c != 127) {
+                    command.append(c);
+                } else if (action.equals("suggest_command") && c == '\n') {
+                    command.append(c);
+                }
+            }
+
+            clickEventTag.putString("command", command.toString());
         }
     }
 
@@ -246,15 +250,22 @@ public final class ComponentRewriter1_21_5 extends JsonNBTComponentRewriter<Clie
         final String loreKey = TagUtil.getNamespacedTagKey(componentsTag, "lore");
         final ListTag<StringTag> lore = componentsTag.getListTag(loreKey, StringTag.class);
         if (lore != null) {
-            componentsTag.put(loreKey, updateComponentList(connection, lore));
+            componentsTag.put(loreKey, updateComponentList(connection, lore, false));
         }
     }
 
-    public ListTag<CompoundTag> updateComponentList(final UserConnection connection, final ListTag<StringTag> messages) {
+    public ListTag<CompoundTag> updateComponentList(final UserConnection connection, final ListTag<StringTag> messages, final boolean skipInvalid) {
         final ListTag<CompoundTag> updatedMessages = new ListTag<>(CompoundTag.class);
         for (final StringTag message : messages) {
             // Convert and make sure they're all of the same type
-            final Tag output = uglyJsonToTag(connection, message.getValue());
+            final Tag output;
+            try {
+                output = skipInvalid ? uglyJsonToTagUncaught(connection, message.getValue()) : uglyJsonToTag(connection, message.getValue());
+            } catch (final Exception e) {
+                // Signs ignore invalid data...
+                continue;
+            }
+
             final CompoundTag wrappedComponent = new CompoundTag();
             wrappedComponent.putString("text", "");
             wrappedComponent.put("extra", new ListTag<>(List.of(output)));
@@ -294,15 +305,27 @@ public final class ComponentRewriter1_21_5 extends JsonNBTComponentRewriter<Clie
 
         final StringTag typeTag = contents.getStringTag("type");
         if (typeTag != null) {
+            typeTag.setValue(protocol.getEntityRewriter().mappedEntityIdentifier(typeTag.getValue()));
             hoverEventTag.put("id", typeTag);
         }
     }
 
-    public Tag uglyJsonToTag(final UserConnection connection, final String value) {
+    public Tag uglyJsonToTagUncaught(final UserConnection connection, final String value) {
         // Use the same version for deserializing and serializing, as we handle the remaining changes ourselves
         final Tag contents = SerializerVersion.V1_21_4.toTag(SerializerVersion.V1_21_4.toComponent(value));
         processTag(connection, contents);
         return contents;
+    }
+
+    public Tag uglyJsonToTag(final UserConnection connection, final String value) {
+        try {
+            return uglyJsonToTagUncaught(connection, value);
+        } catch (final Exception e) {
+            if (!Via.getConfig().isSuppressTextComponentConversionWarnings()) {
+                Via.getPlatform().getLogger().log(Level.SEVERE, "Error converting json text component: " + StringUtil.forLogging(value), e);
+            }
+            return new StringTag("<error>");
+        }
     }
 
     @Override
@@ -327,5 +350,10 @@ public final class ComponentRewriter1_21_5 extends JsonNBTComponentRewriter<Clie
                 compoundTag.put("filtered", uglyJsonToTag(connection, filtered));
             }
         }
+    }
+
+    @Override
+    protected SerializerVersion inputSerializerVersion() {
+        return SerializerVersion.V1_21_4;
     }
 }

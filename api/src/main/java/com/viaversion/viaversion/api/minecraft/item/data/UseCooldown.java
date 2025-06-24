@@ -22,13 +22,17 @@
  */
 package com.viaversion.viaversion.api.minecraft.item.data;
 
+import com.viaversion.viaversion.api.connection.UserConnection;
+import com.viaversion.viaversion.api.minecraft.codec.Ops;
+import com.viaversion.viaversion.api.protocol.Protocol;
 import com.viaversion.viaversion.api.type.Type;
 import com.viaversion.viaversion.api.type.Types;
+import com.viaversion.viaversion.util.Key;
+import com.viaversion.viaversion.util.Rewritable;
 import io.netty.buffer.ByteBuf;
-import java.util.function.Function;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public record UseCooldown(float seconds, @Nullable String cooldownGroup) {
+public record UseCooldown(float seconds, @Nullable String cooldownGroup) implements Rewritable {
 
     public static final Type<UseCooldown> TYPE = new Type<>(UseCooldown.class) {
         @Override
@@ -43,14 +47,23 @@ public record UseCooldown(float seconds, @Nullable String cooldownGroup) {
             buffer.writeFloat(value.seconds());
             Types.OPTIONAL_STRING.write(buffer, value.cooldownGroup());
         }
+
+        @Override
+        public void write(final Ops ops, final UseCooldown value) {
+            final Key cooldownGroup = value.cooldownGroup != null ? Key.of(value.cooldownGroup) : null;
+            ops.writeMap(map -> map
+                .write("seconds", Types.FLOAT, value.seconds())
+                .writeOptional("cooldown_group", Types.RESOURCE_LOCATION, cooldownGroup));
+        }
     };
 
-    public UseCooldown rewrite(final Function<String, String> idRewriter) {
+    @Override
+    public UseCooldown rewrite(final UserConnection connection, final Protocol<?, ?, ?, ?> protocol, final boolean clientbound) {
         if (cooldownGroup == null) {
             return this;
         }
 
-        final String mappedCooldownGroup = idRewriter.apply(cooldownGroup);
+        final String mappedCooldownGroup = Rewritable.rewriteItem(protocol, clientbound, cooldownGroup);
         return new UseCooldown(seconds, mappedCooldownGroup);
     }
 }

@@ -321,8 +321,8 @@ public class ItemPacketRewriter1_9 extends ItemRewriter<ClientboundPackets1_8, S
                             w.write(Types.ITEM1_8, null);
                         }).scheduleSend(Protocol1_8To1_9.class);
                         // Finally reset to simulate throwing item
-                        wrapper.set(Types.BYTE, 0, (byte) 0); // Set button to 0
-                        wrapper.set(Types.BYTE, 1, (byte) 0); // Set mode to 0
+                        wrapper.set(Types.BYTE, 1, (byte) 0); // Set button to 0
+                        wrapper.set(Types.BYTE, 2, (byte) 0); // Set mode to 0
                         wrapper.set(Types.SHORT, 0, (short) -999); // Set slot to -999
                     }
                 });
@@ -427,7 +427,11 @@ public class ItemPacketRewriter1_9 extends ItemRewriter<ClientboundPackets1_8, S
             } else {
                 for (int i = 0; i < pages.size(); i++) {
                     final StringTag page = pages.get(i);
-                    page.setValue(ComponentUtil.convertJsonOrEmpty(page.getValue(), SerializerVersion.V1_8, SerializerVersion.V1_9).toString());
+                    try {
+                        page.setValue(ComponentUtil.convertJsonOrEmpty(page.getValue(), SerializerVersion.V1_8, SerializerVersion.V1_9).toString());
+                    } catch (final Exception e) {
+                        // Don't fail on invalid JSON as per Vanilla behaviour
+                    }
                 }
             }
             item.setTag(tag);

@@ -23,6 +23,7 @@
 package com.viaversion.viaversion.api.type.types;
 
 import com.google.common.base.Preconditions;
+import com.viaversion.viaversion.api.minecraft.codec.Ops;
 import com.viaversion.viaversion.api.type.OptionalType;
 import com.viaversion.viaversion.api.type.Type;
 import com.viaversion.viaversion.api.type.Types;
@@ -49,13 +50,13 @@ public class StringType extends Type<String> {
         int len = Types.VAR_INT.readPrimitive(buffer);
 
         Preconditions.checkArgument(len <= maxLength * MAX_CHAR_UTF_8_LENGTH,
-            "Cannot receive string longer than Short.MAX_VALUE * " + MAX_CHAR_UTF_8_LENGTH + " bytes (got %s bytes)", len);
+            "Cannot receive string longer than " + maxLength + " * " + MAX_CHAR_UTF_8_LENGTH + " bytes (got %s bytes)", len);
 
         String string = buffer.toString(buffer.readerIndex(), len, StandardCharsets.UTF_8);
         buffer.skipBytes(len);
 
         Preconditions.checkArgument(string.length() <= maxLength,
-            "Cannot receive string longer than Short.MAX_VALUE characters (got %s bytes)", string.length());
+            "Cannot receive string longer than " + maxLength + " characters (got %s bytes)", string.length());
 
         return string;
     }
@@ -63,12 +64,17 @@ public class StringType extends Type<String> {
     @Override
     public void write(ByteBuf buffer, String object) {
         if (object.length() > maxLength) {
-            throw new IllegalArgumentException("Cannot send string longer than Short.MAX_VALUE characters (got " + object.length() + " characters)");
+            throw new IllegalArgumentException("Cannot send string longer than " + maxLength + " characters (got " + object.length() + " characters)");
         }
 
         byte[] b = object.getBytes(StandardCharsets.UTF_8);
         Types.VAR_INT.writePrimitive(buffer, b.length);
         buffer.writeBytes(b);
+    }
+
+    @Override
+    public void write(final Ops ops, final String value) {
+        ops.writeString(value);
     }
 
     public static final class OptionalStringType extends OptionalType<String> {

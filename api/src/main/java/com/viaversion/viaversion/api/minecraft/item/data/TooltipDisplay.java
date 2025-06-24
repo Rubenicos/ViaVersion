@@ -22,15 +22,19 @@
  */
 package com.viaversion.viaversion.api.minecraft.item.data;
 
+import com.viaversion.viaversion.api.connection.UserConnection;
+import com.viaversion.viaversion.api.minecraft.codec.Ops;
+import com.viaversion.viaversion.api.protocol.Protocol;
 import com.viaversion.viaversion.api.type.Type;
 import com.viaversion.viaversion.api.type.Types;
+import com.viaversion.viaversion.util.Key;
+import com.viaversion.viaversion.util.Rewritable;
 import io.netty.buffer.ByteBuf;
-import it.unimi.dsi.fastutil.ints.Int2IntFunction;
 import it.unimi.dsi.fastutil.ints.IntLinkedOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSortedSet;
 
 public record TooltipDisplay(boolean hideTooltip,
-                             IntSortedSet hiddenComponents) { // Keeping the ids raw makes this less annoying to deal with...
+                             IntSortedSet hiddenComponents) implements Rewritable { // Keeping the ids raw makes this less annoying to deal with...
 
     public static final Type<TooltipDisplay> TYPE = new Type<>(TooltipDisplay.class) {
 
@@ -53,16 +57,25 @@ public record TooltipDisplay(boolean hideTooltip,
                 Types.VAR_INT.writePrimitive(buffer, hiddenComponent);
             }
         }
+
+        @Override
+        public void write(final Ops ops, final TooltipDisplay value) {
+            final Key[] hiddenComponents = value.hiddenComponents.intStream().mapToObj(id -> ops.context().registryAccess().dataComponentType(id)).toArray(Key[]::new);
+            ops.writeMap(map -> map
+                .writeOptional("hide_tooltip", Types.BOOLEAN, value.hideTooltip, false)
+                .writeOptional("hidden_components", Types.RESOURCE_LOCATION_ARRAY, hiddenComponents, new Key[0]));
+        }
     };
 
-    public TooltipDisplay rewrite(final Int2IntFunction idRewriter) {
+    @Override
+    public TooltipDisplay rewrite(final UserConnection connection, final Protocol<?, ?, ?, ?> protocol, final boolean clientbound) {
         if (hiddenComponents.isEmpty()) {
             return this;
         }
 
         final IntSortedSet newHiddenComponents = new IntLinkedOpenHashSet();
         for (final int hiddenComponent : hiddenComponents) {
-            newHiddenComponents.add(idRewriter.applyAsInt(hiddenComponent));
+            newHiddenComponents.add(Rewritable.rewriteDataComponentType(protocol, clientbound, hiddenComponent));
         }
         return new TooltipDisplay(hideTooltip, newHiddenComponents);
     }
