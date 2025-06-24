@@ -644,6 +644,9 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
                 value.getBoolean("damage_on_hurt", true)
             ));
         }
+        if (componentsTag.get("minecraft:tooltip_style") instanceof StringTag style) {
+            data.set(StructuredDataKey.TOOLTIP_STYLE, style.getValue());
+        }
     }
 
     private static String identifierFromTag(final StringTag tag) {
