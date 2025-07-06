@@ -137,8 +137,10 @@ public record Equippable(int equipmentSlot, Holder<SoundEvent> soundEvent, @Null
 
     @Override
     public Equippable rewrite(final UserConnection connection, final Protocol<?, ?, ?, ?> protocol, final boolean clientbound) {
-        final Holder<SoundEvent> soundEvent = this.soundEvent.updateId(Rewritable.soundRewriteFunction(protocol, clientbound));
-        final Holder<SoundEvent> shearingSound = this.shearingSound.updateId(Rewritable.soundRewriteFunction(protocol, clientbound));
-        return soundEvent == this.soundEvent && shearingSound == this.shearingSound ? this : new Equippable(equipmentSlot, soundEvent, model, cameraOverlay, allowedEntities, dispensable, swappable, damageOnHurt, equipOnInteract, canBeSheared, shearingSound);
+        final Holder<SoundEvent> soundEvent = SoundEvent.rewriteHolder(this.soundEvent, Rewritable.soundRewriteFunction(protocol, clientbound));
+        final Holder<SoundEvent> shearingSound = SoundEvent.rewriteHolder(this.shearingSound, Rewritable.soundRewriteFunction(protocol, clientbound));
+        final HolderSet allowedEntities = this.allowedEntities != null ? this.allowedEntities.rewrite(Rewritable.entityRewriteFunction(protocol, clientbound)) : null;
+        return soundEvent == this.soundEvent && shearingSound == this.shearingSound && allowedEntities == this.allowedEntities ? this
+            : new Equippable(equipmentSlot, soundEvent, model, cameraOverlay, allowedEntities, dispensable, swappable, damageOnHurt, equipOnInteract, canBeSheared, shearingSound);
     }
 }

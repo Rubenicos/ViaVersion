@@ -605,7 +605,7 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
 
         final StringTag itemModel = componentsTag.getStringTag("minecraft:item_model");
         if (itemModel != null) {
-            data.set(StructuredDataKey.ITEM_MODEL, itemModel.getValue());
+            data.set(StructuredDataKey.ITEM_MODEL, Key.of(itemModel.getValue()));
         }
 
         if (componentsTag.get("minecraft:equippable") instanceof CompoundTag value) {
@@ -638,7 +638,7 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
             ));
         }
         if (componentsTag.get("minecraft:tooltip_style") instanceof StringTag style) {
-            data.set(StructuredDataKey.TOOLTIP_STYLE, style.getValue());
+            data.set(StructuredDataKey.TOOLTIP_STYLE, Key.of(style.getValue()));
         }
     }
 

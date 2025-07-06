@@ -20,29 +20,42 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.viaversion.viaversion.api.type.types;
+package com.viaversion.viaversion.api.type.types.misc;
 
+import com.viaversion.nbt.tag.ByteTag;
+import com.viaversion.nbt.tag.CompoundTag;
+import com.viaversion.nbt.tag.Tag;
 import com.viaversion.viaversion.api.minecraft.codec.Ops;
 import com.viaversion.viaversion.api.type.Types;
-import com.viaversion.viaversion.util.Key;
+import java.util.Map;
+import java.util.Set;
 
-public final class RegistryValueType extends VarIntType {
+/**
+ * Only strictly needed for hashing purposes for now.
+ */
+public class TextComponentTagType extends TagType {
 
-    private final String[] names;
+    private static final Set<String> BOOLEAN_KEYS = Set.of("bold", "italic", "underlined", "strikethrough", "obfuscated", "interpret");
 
-    public RegistryValueType(final String... names) {
-        this.names = names;
-        for (int i = 0; i < names.length; i++) {
-            names[i] = Key.namespaced(names[i]);
+    @Override
+    public void write(final Ops ops, final Tag value) {
+        if (value instanceof final CompoundTag compoundTag) {
+            ops.writeMap(map -> {
+                for (final Map.Entry<String, Tag> entry : compoundTag.entrySet()) {
+                    write(map, entry.getKey(), entry.getValue());
+                }
+            });
+        } else {
+            super.write(ops, value);
         }
     }
 
-    @Override
-    public void write(final Ops ops, final Integer value) {
-        Types.STRING.write(ops, names[value]);
-    }
-
-    public String[] names() {
-        return names;
+    private void write(final Ops.MapSerializer map, final String key, final Tag value) {
+        // Better than fully parsing and re-serializing the component
+        if (value instanceof final ByteTag byteTag && BOOLEAN_KEYS.contains(key)) {
+            map.write(key, Types.BOOLEAN, byteTag.asBoolean());
+        } else {
+            map.write(key, this, value);
+        }
     }
 }

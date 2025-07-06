@@ -20,51 +20,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.viaversion.viaversion.api.minecraft;
+package com.viaversion.viaversion.api.type.types.misc;
 
 import com.google.common.base.Preconditions;
-import it.unimi.dsi.fastutil.ints.Int2IntFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import com.viaversion.nbt.tag.Tag;
+import com.viaversion.viaversion.api.type.Type;
+import com.viaversion.viaversion.api.type.Types;
+import io.netty.buffer.ByteBuf;
 
-record IdHolder<T>(int id) implements Holder<T> {
+public final class LengthPrefixedTagType extends Type<Tag> {
 
-    IdHolder {
-        Preconditions.checkArgument(id >= 0, "id cannot be negative");
+    private final int maxLength;
+
+    public LengthPrefixedTagType(int maxLength) {
+        super(Tag.class);
+        this.maxLength = maxLength;
     }
 
     @Override
-    public boolean isDirect() {
-        return false;
+    public Tag read(final ByteBuf buffer) {
+        final int length = Types.VAR_INT.readPrimitive(buffer);
+
+        Preconditions.checkArgument(length <= maxLength,
+            "Cannot receive tag longer than %s bytes (got %s bytes)", maxLength, length);
+
+        return Types.TAG.read(buffer.readSlice(length));
     }
 
     @Override
-    public boolean hasId() {
-        return true;
-    }
+    public void write(final ByteBuf buffer, final Tag tag) {
+        final ByteBuf tempBuf = buffer.alloc().buffer();
+        try {
+            Types.TAG.write(tempBuf, tag);
 
-    @Override
-    public T value() {
-        throw new IllegalArgumentException("Holder is not direct");
-    }
+            Preconditions.checkArgument(tempBuf.readableBytes() <= maxLength,
+                "Cannot send tag longer than %s bytes (got %s bytes)", maxLength, tempBuf.readableBytes());
 
-    @Override
-    public Holder<T> updateId(final Int2IntFunction rewriteFunction, final Supplier<Holder<T>> ifMissing) {
-        final int rewrittenId = rewriteFunction.applyAsInt(id);
-        if (rewrittenId == id) {
-            return this;
+            Types.VAR_INT.writePrimitive(buffer, tempBuf.readableBytes());
+            buffer.writeBytes(tempBuf);
+        } finally {
+            tempBuf.release();
         }
-        if (rewrittenId == -1) {
-            if (ifMissing != null) {
-                return ifMissing.get();
-            }
-            throw new IllegalArgumentException("Received invalid id in updateId");
-        }
-        return Holder.of(rewrittenId);
-    }
-
-    @Override
-    public Holder<T> updateValue(final Function<T, T> rewriteFunction) {
-        return this;
     }
 }
