@@ -46,6 +46,7 @@ import com.viaversion.viaversion.api.minecraft.item.data.FoodProperties1_20_5;
 import com.viaversion.viaversion.api.minecraft.item.data.FoodProperties1_21_2;
 import com.viaversion.viaversion.api.minecraft.item.data.Instrument1_20_5;
 import com.viaversion.viaversion.api.minecraft.item.data.Instrument1_21_2;
+import com.viaversion.viaversion.api.minecraft.item.data.ItemModel;
 import com.viaversion.viaversion.api.minecraft.item.data.LockCode;
 import com.viaversion.viaversion.api.minecraft.item.data.PotionEffect;
 import com.viaversion.viaversion.api.protocol.packet.PacketWrapper;
@@ -613,7 +614,7 @@ public final class BlockItemPacketRewriter1_21_2 extends StructuredItemRewriter<
 
         final StringTag itemModel = componentsTag.getStringTag("minecraft:item_model");
         if (itemModel != null) {
-            data.set(StructuredDataKey.ITEM_MODEL, Key.of(itemModel.getValue()));
+            data.set(StructuredDataKey.ITEM_MODEL, new ItemModel(Key.of(itemModel.getValue())));
         }
 
         if (componentsTag.get("minecraft:equippable") instanceof CompoundTag value) {
