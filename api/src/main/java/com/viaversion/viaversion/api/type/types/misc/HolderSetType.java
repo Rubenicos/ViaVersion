@@ -88,13 +88,13 @@ public class HolderSetType extends Type<HolderSet> {
             Preconditions.checkArgument(registryKey != null, "Cannot write HolderSet with direct ids without a mapping type");
             if (value.ids().length == 1) {
                 // Single entries are inlined
-                ops.write(Types.RESOURCE_LOCATION, key(ops, value.ids()[0]));
+                ops.write(Types.IDENTIFIER, key(ops, value.ids()[0]));
                 return;
             }
 
             ops.writeList(list -> {
                 for (final int id : value.ids()) {
-                    list.write(Types.RESOURCE_LOCATION, key(ops, id));
+                    list.write(Types.IDENTIFIER, key(ops, id));
                 }
             });
         }
@@ -103,8 +103,11 @@ public class HolderSetType extends Type<HolderSet> {
     private Key key(final Ops ops, final int id) {
         if (registryKey instanceof final MappingData.MappingType mappingType) {
             return ops.context().registryAccess().key(mappingType, id);
+        } else if (registryKey instanceof final RegistryValueType registryValueType) {
+            return Key.of(registryValueType.byId(id));
+        } else {
+            return ops.context().registryAccess().registryKey(registryKey.key().toString(), id);
         }
-        return ops.context().registryAccess().registryKey(registryKey.key().toString(), id);
     }
 
     public static final class OptionalHolderSetType extends OptionalType<HolderSet> {
