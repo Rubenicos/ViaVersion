@@ -1,6 +1,6 @@
 /*
  * This file is part of ViaVersion - https://github.com/ViaVersion/ViaVersion
- * Copyright (C) 2016-2025 ViaVersion and contributors
+ * Copyright (C) 2016-2026 ViaVersion and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +15,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.viaversion.viaversion.common.dummy;
+package com.viaversion.viaversion.protocols.v1_21_11to26_1.storage;
 
-import com.viaversion.viaversion.commands.ViaCommandHandler;
+import com.viaversion.viaversion.api.connection.StorableObject;
 
-public class TestCommandHandler extends ViaCommandHandler {
-
+public final class TagsSent implements StorableObject {
 }

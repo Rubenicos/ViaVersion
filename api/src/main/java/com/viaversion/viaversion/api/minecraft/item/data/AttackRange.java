@@ -1,6 +1,6 @@
 /*
  * This file is part of ViaVersion - https://github.com/ViaVersion/ViaVersion
- * Copyright (C) 2016-2025 ViaVersion and contributors
+ * Copyright (C) 2016-2026 ViaVersion and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,8 +56,8 @@ public record AttackRange(float minRange, float maxRange,
         @Override
         public void write(final Ops ops, final AttackRange AttackRange) {
             ops.writeMap(map -> map
-                .writeOptional("min_range", Types.FLOAT, AttackRange.minRange, 0F)
-                .writeOptional("max_range", Types.FLOAT, AttackRange.maxRange, 3F)
+                .writeOptional("min_reach", Types.FLOAT, AttackRange.minRange, 0F)
+                .writeOptional("max_reach", Types.FLOAT, AttackRange.maxRange, 3F)
                 .writeOptional("min_creative_reach", Types.FLOAT, AttackRange.minCreativeRange, 0F)
                 .writeOptional("max_creative_reach", Types.FLOAT, AttackRange.maxCreativeRange, 5F)
                 .writeOptional("hitbox_margin", Types.FLOAT, AttackRange.hitboxMargin, 0.3F)

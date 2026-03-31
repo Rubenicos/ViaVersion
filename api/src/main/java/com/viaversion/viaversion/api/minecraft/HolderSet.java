@@ -1,6 +1,6 @@
 /*
  * This file is part of ViaVersion - https://github.com/ViaVersion/ViaVersion
- * Copyright (C) 2016-2025 ViaVersion and contributors
+ * Copyright (C) 2016-2026 ViaVersion and contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
  */
 package com.viaversion.viaversion.api.minecraft;
 
+import com.google.common.base.Preconditions;
 import com.viaversion.nbt.tag.ListTag;
 import com.viaversion.nbt.tag.StringTag;
 import com.viaversion.nbt.tag.Tag;
@@ -40,6 +41,7 @@ public interface HolderSet {
      * @return a new holder set
      */
     static HolderSet of(final String tagKey) {
+        Preconditions.checkNotNull(tagKey);
         return new HolderSetImpl.Tag(tagKey);
     }
 
@@ -50,6 +52,7 @@ public interface HolderSet {
      * @return a new holder set
      */
     static HolderSet of(final int[] ids) {
+        Preconditions.checkNotNull(ids);
         return new HolderSetImpl.Ids(ids);
     }
 
