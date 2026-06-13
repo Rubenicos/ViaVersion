@@ -25,6 +25,7 @@ import it.unimi.dsi.fastutil.ints.IntSet;
 
 public class EntityTracker1_11 extends EntityTrackerBase {
     private final IntSet holograms = new IntOpenHashSet();
+    private final Object hologramsLock = new Object();
 
     public EntityTracker1_11(UserConnection user) {
         super(user, EntityType.PLAYER);
@@ -38,14 +39,20 @@ public class EntityTracker1_11 extends EntityTrackerBase {
     }
 
     public boolean addHologram(int entId) {
-        return holograms.add(entId);
+        synchronized (hologramsLock) {
+            return holograms.add(entId);
+        }
     }
 
     public boolean isHologram(int entId) {
-        return holograms.contains(entId);
+        synchronized (hologramsLock) {
+            return holograms.contains(entId);
+        }
     }
 
     public void removeHologram(int entId) {
-        holograms.remove(entId);
+        synchronized (hologramsLock) {
+            holograms.remove(entId);
+        }
     }
 }

@@ -28,6 +28,7 @@ public class EntityTracker1_14 extends EntityTrackerBase {
     // 0x1 = sleeping, 0x2 = riptide
     private final Int2ObjectMap<Byte> sleepingAndRiptideData = new Int2ObjectOpenHashMap<>();
     private final Int2ObjectMap<Byte> playerEntityFlags = new Int2ObjectOpenHashMap<>();
+    private final Object trackerLock = new Object();
     private int latestTradeWindowId;
     private boolean forceSendCenterChunk = true;
     private int chunkCenterX;
@@ -40,19 +41,25 @@ public class EntityTracker1_14 extends EntityTrackerBase {
     @Override
     public void removeEntity(int entityId) {
         super.removeEntity(entityId);
-
-        insentientData.remove(entityId);
-        sleepingAndRiptideData.remove(entityId);
-        playerEntityFlags.remove(entityId);
+        synchronized (trackerLock) {
+            insentientData.remove(entityId);
+            sleepingAndRiptideData.remove(entityId);
+            playerEntityFlags.remove(entityId);
+        }
     }
 
     public byte getInsentientData(int entity) {
-        Byte val = insentientData.get(entity);
+        final Byte val;
+        synchronized (trackerLock) {
+            val = insentientData.get(entity);
+        }
         return val == null ? 0 : val;
     }
 
     public void setInsentientData(int entity, byte value) {
-        insentientData.put(entity, (Byte) value);
+        synchronized (trackerLock) {
+            insentientData.put(entity, (Byte) value);
+        }
     }
 
     private static byte zeroIfNull(Byte val) {
@@ -61,37 +68,49 @@ public class EntityTracker1_14 extends EntityTrackerBase {
     }
 
     public boolean isSleeping(int player) {
-        return (zeroIfNull(sleepingAndRiptideData.get(player)) & 1) != 0;
+        synchronized (trackerLock) {
+            return (zeroIfNull(sleepingAndRiptideData.get(player)) & 1) != 0;
+        }
     }
 
     public void setSleeping(int player, boolean value) {
-        byte newValue = (byte) ((zeroIfNull(sleepingAndRiptideData.get(player)) & ~1) | (value ? 1 : 0));
-        if (newValue == 0) {
-            sleepingAndRiptideData.remove(player);
-        } else {
-            sleepingAndRiptideData.put(player, (Byte) newValue);
+        synchronized (trackerLock) {
+            byte newValue = (byte) ((zeroIfNull(sleepingAndRiptideData.get(player)) & ~1) | (value ? 1 : 0));
+            if (newValue == 0) {
+                sleepingAndRiptideData.remove(player);
+            } else {
+                sleepingAndRiptideData.put(player, (Byte) newValue);
+            }
         }
     }
 
     public boolean isRiptide(int player) {
-        return (zeroIfNull(sleepingAndRiptideData.get(player)) & 2) != 0;
+        synchronized (trackerLock) {
+            return (zeroIfNull(sleepingAndRiptideData.get(player)) & 2) != 0;
+        }
     }
 
     public void setRiptide(int player, boolean value) {
-        byte newValue = (byte) ((zeroIfNull(sleepingAndRiptideData.get(player)) & ~2) | (value ? 2 : 0));
-        if (newValue == 0) {
-            sleepingAndRiptideData.remove(player);
-        } else {
-            sleepingAndRiptideData.put(player, (Byte) newValue);
+        synchronized (trackerLock) {
+            byte newValue = (byte) ((zeroIfNull(sleepingAndRiptideData.get(player)) & ~2) | (value ? 2 : 0));
+            if (newValue == 0) {
+                sleepingAndRiptideData.remove(player);
+            } else {
+                sleepingAndRiptideData.put(player, (Byte) newValue);
+            }
         }
     }
 
     public byte getEntityFlags(int player) {
-        return zeroIfNull(playerEntityFlags.get(player));
+        synchronized (trackerLock) {
+            return zeroIfNull(playerEntityFlags.get(player));
+        }
     }
 
     public void setEntityFlags(int player, byte data) {
-        playerEntityFlags.put(player, (Byte) data);
+        synchronized (trackerLock) {
+            playerEntityFlags.put(player, (Byte) data);
+        }
     }
 
     public int getLatestTradeWindowId() {

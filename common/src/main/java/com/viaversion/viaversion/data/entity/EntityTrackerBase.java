@@ -37,10 +37,11 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeListener {
     protected final Int2ObjectMap<TrackedEntity> entities = new Int2ObjectOpenHashMap<>();
+    protected final Object entityLock = new Object();
     private final Map<String, KeyMappings> registryKeyMappings = new HashMap<>();
     private final UserConnection connection;
     private final EntityType playerType;
-    private Integer clientEntityId;
+    private volatile Integer clientEntityId;
     private int currentWorldSectionHeight = -1;
     private int currentMinY;
     private String currentWorld;
@@ -61,59 +62,88 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
 
     @Override
     public void addEntity(int id, EntityType type) {
-        entities.put(id, new TrackedEntityImpl(type));
+        synchronized (entityLock) {
+            entities.put(id, new TrackedEntityImpl(type));
+        }
     }
 
     @Override
     public boolean hasEntity(int id) {
-        return entities.containsKey(id);
+        synchronized (entityLock) {
+            return entities.containsKey(id);
+        }
     }
 
     @Override
     public @Nullable TrackedEntity entity(final int entityId) {
-        return entities.get(entityId);
+        synchronized (entityLock) {
+            return entities.get(entityId);
+        }
     }
 
     @Override
     public @Nullable EntityType entityType(int id) {
-        final TrackedEntity entity = entities.get(id);
+        final TrackedEntity entity;
+        synchronized (entityLock) {
+            entity = entities.get(id);
+        }
         return entity != null ? entity.entityType() : null;
     }
 
     @Override
     public @Nullable StoredEntityData entityData(int id) {
-        final TrackedEntity entity = entities.get(id);
+        final TrackedEntity entity;
+        synchronized (entityLock) {
+            entity = entities.get(id);
+        }
         return entity != null ? entity.data() : null;
     }
 
     @Override
     public @Nullable StoredEntityData entityDataIfPresent(int id) {
-        final TrackedEntity entity = entities.get(id);
+        final TrackedEntity entity;
+        synchronized (entityLock) {
+            entity = entities.get(id);
+        }
         return entity != null && entity.hasData() ? entity.data() : null;
     }
 
     @Override
     public void removeEntity(int id) {
-        entities.remove(id);
+        synchronized (entityLock) {
+            entities.remove(id);
+        }
     }
 
     @Override
     public void clearEntities() {
+        final int[] entityIds;
+        synchronized (entityLock) {
+            entityIds = entities.keySet().toIntArray();
+        }
+
         // Call wrapper function in case protocols need to do additional removals
-        for (final int id : entities.keySet().toIntArray()) {
+        for (final int id : entityIds) {
             removeEntity(id);
         }
 
         // Re-add the client entity. Keep the call above to untrack attached data if necessary
         if (clientEntityId != null) {
-            entities.put(clientEntityId.intValue(), new TrackedEntityImpl(playerType));
+            synchronized (entityLock) {
+                entities.put(clientEntityId.intValue(), new TrackedEntityImpl(playerType));
+            }
         }
     }
 
     @Override
     public void clear() {
+        final int[] entityIds;
+        synchronized (entityLock) {
+            entityIds = entities.keySet().toIntArray();
+        }
+
         // Call wrapper function in case protocols need to do additional removals
-        for (final int id : entities.keySet().toIntArray()) {
+        for (final int id : entityIds) {
             removeEntity(id);
         }
 
@@ -137,14 +167,16 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
     @Override
     public void setClientEntityId(int clientEntityId) {
         Preconditions.checkNotNull(playerType);
-        final TrackedEntity oldEntity;
-        if (this.clientEntityId != null && (oldEntity = entities.remove(this.clientEntityId.intValue())) != null) {
-            entities.put(clientEntityId, oldEntity);
-        } else {
-            entities.put(clientEntityId, new TrackedEntityImpl(playerType));
-        }
+        synchronized (entityLock) {
+            final TrackedEntity oldEntity;
+            if (this.clientEntityId != null && (oldEntity = entities.remove(this.clientEntityId.intValue())) != null) {
+                entities.put(clientEntityId, oldEntity);
+            } else {
+                entities.put(clientEntityId, new TrackedEntityImpl(playerType));
+            }
 
-        this.clientEntityId = clientEntityId;
+            this.clientEntityId = clientEntityId;
+        }
     }
 
     @Override

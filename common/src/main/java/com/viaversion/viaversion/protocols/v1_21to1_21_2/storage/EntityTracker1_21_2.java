@@ -31,6 +31,7 @@ import java.util.UUID;
 public final class EntityTracker1_21_2 extends EntityTrackerBase {
 
     private final Int2ObjectMap<BoatEntity> boats = new Int2ObjectOpenHashMap<>();
+    private final Object boatsLock = new Object();
     private double playerMaxHealthAttributeValue = 20F;
 
     public EntityTracker1_21_2(final UserConnection connection) {
@@ -39,24 +40,40 @@ public final class EntityTracker1_21_2 extends EntityTrackerBase {
 
     public BoatEntity trackBoatEntity(final int entityId, final UUID uuid, final int data) {
         final BoatEntity entity = new BoatEntity(uuid, data);
-        boats.put(entityId, entity);
+        synchronized (boatsLock) {
+            boats.put(entityId, entity);
+        }
         return entity;
     }
 
     public BoatEntity trackedBoatEntity(final int entityId) {
-        return boats.get(entityId);
+        synchronized (boatsLock) {
+            return boats.get(entityId);
+        }
     }
 
     @Override
     public void removeEntity(final int id) {
         super.removeEntity(id);
-        boats.remove(id);
+        synchronized (boatsLock) {
+            boats.remove(id);
+        }
     }
 
     public void updateBoatType(final int entityId, final EntityType type) {
-        final BoatEntity entity = boats.get(entityId);
-        removeEntity(entityId);
-        boats.put(entityId, entity);
+        final BoatEntity entity;
+        synchronized (boatsLock) {
+            entity = boats.get(entityId);
+        }
+
+        super.removeEntity(entityId);
+        synchronized (boatsLock) {
+            if (entity != null) {
+                boats.put(entityId, entity);
+            } else {
+                boats.remove(entityId);
+            }
+        }
         addEntity(entityId, type);
     }
 

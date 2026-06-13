@@ -60,6 +60,7 @@ public class EntityTracker1_9 extends EntityTrackerBase {
     private final Int2ObjectMap<BossBar> bossBarMap = new Int2ObjectOpenHashMap<>();
     private final IntSet validBlocking = new IntOpenHashSet();
     private final IntSet knownHolograms = new IntOpenHashSet();
+    private final Object trackerLock = new Object();
     private final Set<BlockPosition> blockInteractions = Collections.newSetFromMap(CacheBuilder.newBuilder()
         .maximumSize(1000)
         .expireAfterAccess(250, TimeUnit.MILLISECONDS)
@@ -79,7 +80,9 @@ public class EntityTracker1_9 extends EntityTrackerBase {
     }
 
     public UUID getEntityUUID(int id) {
-        return uuidMap.computeIfAbsent(id, k -> UUID.randomUUID());
+        synchronized (trackerLock) {
+            return uuidMap.computeIfAbsent(id, k -> UUID.randomUUID());
+        }
     }
 
     public void setSecondHand(Item item) {
@@ -136,13 +139,14 @@ public class EntityTracker1_9 extends EntityTrackerBase {
     @Override
     public void removeEntity(int entityId) {
         super.removeEntity(entityId);
-
-        vehicleMap.remove(entityId);
-        uuidMap.remove(entityId);
-        validBlocking.remove(entityId);
-        knownHolograms.remove(entityId);
-
-        BossBar bar = bossBarMap.remove(entityId);
+        final BossBar bar;
+        synchronized (trackerLock) {
+            vehicleMap.remove(entityId);
+            uuidMap.remove(entityId);
+            validBlocking.remove(entityId);
+            knownHolograms.remove(entityId);
+            bar = bossBarMap.remove(entityId);
+        }
         if (bar != null) {
             bar.hide();
             // Send to provider
@@ -193,7 +197,11 @@ public class EntityTracker1_9 extends EntityTrackerBase {
                     if (entityId != getProvidedEntityId() && Via.getConfig().isShieldBlocking()
                         && user().getProtocolInfo().protocolVersion().olderThan(ProtocolVersion.v1_21_4)) {
                         if ((data & 0x10) == 0x10) {
-                            if (validBlocking.contains(entityId)) {
+                            final boolean isValidBlocking;
+                            synchronized (trackerLock) {
+                                isValidBlocking = validBlocking.contains(entityId);
+                            }
+                            if (isValidBlocking) {
                                 Item shield = new DataItem(442, (byte) 1, (short) 0, null);
                                 setSecondHand(entityId, shield);
                             } else {
@@ -222,8 +230,11 @@ public class EntityTracker1_9 extends EntityTrackerBase {
                     if ((value & 0x20) == 0x20 && ((byte) data.getValue() & 0x01) == 0x01
                         && (displayName = getDataByIndex(entityDataList, 2)) != null && !((String) displayName.getValue()).isEmpty()
                         && (displayNameVisible = getDataByIndex(entityDataList, 3)) != null && (boolean) displayNameVisible.getValue()) {
-                        if (!knownHolograms.contains(entityId)) {
-                            knownHolograms.add(entityId);
+                        final boolean added;
+                        synchronized (trackerLock) {
+                            added = knownHolograms.add(entityId);
+                        }
+                        if (added) {
                             // Send movement
                             PacketWrapper wrapper = PacketWrapper.create(ClientboundPackets1_9.MOVE_ENTITY_POS, null, user());
                             wrapper.write(Types.VAR_INT, entityId);
@@ -240,37 +251,54 @@ public class EntityTracker1_9 extends EntityTrackerBase {
             if (Via.getConfig().isBossbarPatch()) {
                 if (type == EntityType.ENDER_DRAGON || type == EntityType.WITHER) {
                     if (entityData.id() == 2) {
-                        BossBar bar = bossBarMap.get(entityId);
+                        final BossBar createdBar;
+                        final BossBar bar;
                         String title = (String) entityData.getValue();
                         if (title.isEmpty()) {
                             title = type == EntityType.ENDER_DRAGON ? DRAGON_TRANSLATABLE : WITHER_TRANSLATABLE;
                         } else {
                             title = ComponentUtil.plainToJson(title).toString();
                         }
-                        if (bar == null) {
-                            bar = Via.getAPI().legacyAPI().createLegacyBossBar(title, BossColor.PINK, BossStyle.SOLID);
-                            bossBarMap.put(entityId, bar);
-                            bar.addConnection(user());
-                            bar.show();
-
-                            // Send to provider
-                            Via.getManager().getProviders().get(BossBarProvider.class).handleAdd(user(), bar.getId());
+                        synchronized (trackerLock) {
+                            BossBar existingBar = bossBarMap.get(entityId);
+                            if (existingBar == null) {
+                                existingBar = Via.getAPI().legacyAPI().createLegacyBossBar(title, BossColor.PINK, BossStyle.SOLID);
+                                bossBarMap.put(entityId, existingBar);
+                                createdBar = existingBar;
+                            } else {
+                                createdBar = null;
+                            }
+                            bar = existingBar;
+                        }
+                        if (createdBar != null) {
+                            createdBar.addConnection(user());
+                            createdBar.show();
+                            Via.getManager().getProviders().get(BossBarProvider.class).handleAdd(user(), createdBar.getId());
                         } else {
                             bar.setTitle(title);
                         }
                     } else if (entityData.id() == 6 && !Via.getConfig().isBossbarAntiflicker()) { // If anti flicker is enabled, don't update health
-                        BossBar bar = bossBarMap.get(entityId);
+                        final BossBar createdBar;
+                        final BossBar bar;
                         // Make health range between 0 and 1
                         float maxHealth = type == EntityType.ENDER_DRAGON ? 200.0f : 300.0f;
                         float health = Math.max(0.0f, Math.min(((float) entityData.getValue()) / maxHealth, 1.0f));
-                        if (bar == null) {
-                            String title = type == EntityType.ENDER_DRAGON ? DRAGON_TRANSLATABLE : WITHER_TRANSLATABLE;
-                            bar = Via.getAPI().legacyAPI().createLegacyBossBar(title, health, BossColor.PINK, BossStyle.SOLID);
-                            bossBarMap.put(entityId, bar);
-                            bar.addConnection(user());
-                            bar.show();
-                            // Send to provider
-                            Via.getManager().getProviders().get(BossBarProvider.class).handleAdd(user(), bar.getId());
+                        synchronized (trackerLock) {
+                            BossBar existingBar = bossBarMap.get(entityId);
+                            if (existingBar == null) {
+                                String title = type == EntityType.ENDER_DRAGON ? DRAGON_TRANSLATABLE : WITHER_TRANSLATABLE;
+                                existingBar = Via.getAPI().legacyAPI().createLegacyBossBar(title, health, BossColor.PINK, BossStyle.SOLID);
+                                bossBarMap.put(entityId, existingBar);
+                                createdBar = existingBar;
+                            } else {
+                                createdBar = null;
+                            }
+                            bar = existingBar;
+                        }
+                        if (createdBar != null) {
+                            createdBar.addConnection(user());
+                            createdBar.show();
+                            Via.getManager().getProviders().get(BossBarProvider.class).handleAdd(user(), createdBar.getId());
                         } else {
                             bar.setHealth(health);
                         }
