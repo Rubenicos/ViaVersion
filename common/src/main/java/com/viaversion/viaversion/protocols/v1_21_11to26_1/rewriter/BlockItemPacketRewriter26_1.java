@@ -63,14 +63,12 @@ public final class BlockItemPacketRewriter26_1 extends StructuredItemRewriter<Cl
                 }
 
                 final DataPalette blockPalette = section.palette(PaletteType.BLOCKS);
-                for (int idx = 0; idx < ChunkSection.SIZE; idx++) {
-                    final int id = blockPalette.idAt(idx);
-                    if (Protocol1_21_11To26_1.MAPPINGS.fluidBlockStates().contains(id)) {
-                        // Needed for certain client-side fluid interactions
-                        section.setFluidCount(section.getFluidCount() + 1);
-                    }
-                }
+                blockPalette.forEachMatchingCoordinate(id -> Protocol1_21_11To26_1.MAPPINGS.fluidBlockStates().contains(id), $ -> {
+                    // Needed for certain client-side fluid interactions
+                    section.setFluidCount(section.getFluidCount() + 1);
+                });
             }
+
             protocol.getBlockRewriter().handleBlockEntities(chunk, wrapper.user());
         });
     }
@@ -134,7 +132,10 @@ public final class BlockItemPacketRewriter26_1 extends StructuredItemRewriter<Cl
         container.replace(StructuredDataKey.ZOMBIE_NAUTILUS_VARIANT26_1, StructuredDataKey.ZOMBIE_NAUTILUS_VARIANT1_21_11, Either::left);
         container.replace(StructuredDataKey.DAMAGE_TYPE26_1, StructuredDataKey.DAMAGE_TYPE1_21_11, damageType -> new DamageType(Either.left(damageType)));
         container.replace(StructuredDataKey.PROVIDES_BANNER_PATTERNS26_1, StructuredDataKey.PROVIDES_BANNER_PATTERNS1_21_5, patterns -> tagOrNull(patterns.patterns()));
-        container.replace(StructuredDataKey.DAMAGE_RESISTANT26_1, StructuredDataKey.DAMAGE_RESISTANT1_21_2, damageResistant -> new DamageResistant1_21_2(tagOrNull(damageResistant.types())));
+        container.replace(StructuredDataKey.DAMAGE_RESISTANT26_1, StructuredDataKey.DAMAGE_RESISTANT1_21_2, damageResistant -> {
+            final Key key = tagOrNull(damageResistant.types());
+            return key != null ? new DamageResistant1_21_2(key) : null;
+        });
         container.replace(StructuredDataKey.BLOCKS_ATTACKS26_1, StructuredDataKey.BLOCKS_ATTACKS1_21_5, blocksAttacks -> {
             if (blocksAttacks.bypassedBy() == null) {
                 return blocksAttacks;

@@ -23,9 +23,10 @@ import com.viaversion.viaversion.api.connection.UserConnection;
 import com.viaversion.viaversion.api.data.entity.ClientEntityIdChangeListener;
 import com.viaversion.viaversion.api.data.entity.DimensionData;
 import com.viaversion.viaversion.api.data.entity.EntityTracker;
-import com.viaversion.viaversion.api.data.entity.StoredEntityData;
 import com.viaversion.viaversion.api.data.entity.TrackedEntity;
+import com.viaversion.viaversion.api.minecraft.chunks.Chunk;
 import com.viaversion.viaversion.api.minecraft.entities.EntityType;
+import com.viaversion.viaversion.api.type.Type;
 import com.viaversion.viaversion.util.Key;
 import com.viaversion.viaversion.util.KeyMappings;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -49,6 +50,8 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
     private int biomesSent = -1;
     private Map<String, DimensionData> dimensions = Collections.emptyMap();
     private boolean instaBuild;
+    private Type<Chunk> chunkType;
+    private Type<Chunk> mappedChunkType;
 
     public EntityTrackerBase(UserConnection connection, @Nullable EntityType playerType) {
         this.connection = connection;
@@ -61,10 +64,13 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
     }
 
     @Override
-    public void addEntity(int id, EntityType type) {
+    public TrackedEntity addEntity(int id, EntityType type) {
+        final TrackedEntityImpl entity;
         synchronized (entityLock) {
-            entities.put(id, new TrackedEntityImpl(type));
+            entity = new TrackedEntityImpl(type);
+            entities.put(id, entity);
         }
+        return entity;
     }
 
     @Override
@@ -91,28 +97,12 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
     }
 
     @Override
-    public @Nullable StoredEntityData entityData(int id) {
+    public TrackedEntity removeEntity(int id) {
         final TrackedEntity entity;
         synchronized (entityLock) {
-            entity = entities.get(id);
+            entity = entities.remove(id);
         }
-        return entity != null ? entity.data() : null;
-    }
-
-    @Override
-    public @Nullable StoredEntityData entityDataIfPresent(int id) {
-        final TrackedEntity entity;
-        synchronized (entityLock) {
-            entity = entities.get(id);
-        }
-        return entity != null && entity.hasData() ? entity.data() : null;
-    }
-
-    @Override
-    public void removeEntity(int id) {
-        synchronized (entityLock) {
-            entities.remove(id);
-        }
+        return entity;
     }
 
     @Override
@@ -196,6 +186,10 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
 
     @Override
     public void setCurrentWorldSectionHeight(int currentWorldSectionHeight) {
+        if (this.currentWorldSectionHeight != currentWorldSectionHeight) {
+            this.chunkType = null;
+            this.mappedChunkType = null;
+        }
         this.currentWorldSectionHeight = currentWorldSectionHeight;
     }
 
@@ -236,7 +230,25 @@ public class EntityTrackerBase implements EntityTracker, ClientEntityIdChangeLis
 
     @Override
     public void setBiomesSent(int biomesSent) {
+        if (this.biomesSent != biomesSent) {
+            this.chunkType = null;
+            this.mappedChunkType = null;
+        }
         this.biomesSent = biomesSent;
+    }
+
+    @Override
+    public @Nullable Type<Chunk> chunkType(final boolean mapped) {
+        return mapped ? mappedChunkType : chunkType;
+    }
+
+    @Override
+    public void setChunkType(final boolean mapped, @Nullable final Type<Chunk> chunkType) {
+        if (mapped) {
+            this.mappedChunkType = chunkType;
+        } else {
+            this.chunkType = chunkType;
+        }
     }
 
     @Override

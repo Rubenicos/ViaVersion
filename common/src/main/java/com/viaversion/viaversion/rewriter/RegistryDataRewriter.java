@@ -53,6 +53,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewriter.RegistryDataRewriter {
     private final Map<String, BiConsumer<String, CompoundTag>> registryEntryHandlers = new Object2ObjectArrayMap<>();
     private final Map<String, Consumer<CompoundTag>> enchantmentEffectHandlers = new Object2ObjectArrayMap<>(); // for nested enchantment data
+    private final Set<String> enchantmentEffectsToRemove = new HashSet<>();
     private final Map<String, List<RegistryEntry>> toAdd = new Object2ObjectArrayMap<>();
     private final Set<String> toRemove = new HashSet<>();
     protected final Protocol<?, ?, ?, ?> protocol;
@@ -88,6 +89,7 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
             case "trim_material" -> updateTrimMaterials(entries);
             case "jukebox_song" -> updateJukeboxSongs(entries);
             case "worldgen/biome" -> updateBiomes(entries);
+            case "dimension_type" -> updateDimensionTypes(entries);
             case "dialog" -> updateDialogs(connection, entries);
         }
 
@@ -168,6 +170,17 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
 
     public void addEnchantmentEffectRewriter(final String key, final Consumer<CompoundTag> rewriter) {
         enchantmentEffectHandlers.put(Key.stripMinecraftNamespace(key), rewriter);
+    }
+
+    /**
+     * Replaces enchantment effects with the given types by an empty all_of effect, as unknown types will result in an error on the client.
+     *
+     * @param types effect types to remove, e.g. entity effect or value effect types
+     */
+    public void removeEnchantmentEffects(final String... types) {
+        for (final String type : types) {
+            enchantmentEffectsToRemove.add(Key.stripMinecraftNamespace(type));
+        }
     }
 
     public void trackDimensionAndBiomes(final UserConnection connection, final String registryKey, final RegistryEntry[] entries) {
@@ -367,13 +380,32 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
         // can be overridden
     }
 
+    public void updateDimensionTypes(final RegistryEntry[] entries) {
+        for (final RegistryEntry entry : entries) {
+            if (entry.tag() == null) {
+                continue;
+            }
+
+            final CompoundTag attributes = ((CompoundTag) entry.tag()).getCompoundTag("attributes");
+            if (attributes != null) {
+                updateEnvironmentAttributes(attributes);
+            }
+        }
+    }
+
     public void updateBiomes(final RegistryEntry[] entries) {
         for (final RegistryEntry entry : entries) {
             if (entry.tag() == null) {
                 continue;
             }
 
-            final CompoundTag effects = ((CompoundTag) entry.tag()).getCompoundTag("effects");
+            final CompoundTag tag = (CompoundTag) entry.tag();
+            final CompoundTag attributes = tag.getCompoundTag("attributes");
+            if (attributes != null) {
+                updateEnvironmentAttributes(attributes);
+            }
+
+            final CompoundTag effects = tag.getCompoundTag("effects");
             if (effects == null) {
                 continue;
             }
@@ -382,6 +414,18 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
             if (particle != null) {
                 handleParticleData(particle.getCompoundTag("options"));
             }
+        }
+    }
+
+    protected void updateEnvironmentAttributes(final CompoundTag tag) {
+        final MappingData mappings = protocol.getMappingData();
+        if (mappings == null || mappings.changedEnvironmentAttributes() == null) {
+            return;
+        }
+
+        // Remove no longer present environment attributes, else the client throws
+        for (final String attribute : mappings.changedEnvironmentAttributes()) {
+            TagUtil.removeNamespaced(tag, attribute);
         }
     }
 
@@ -399,24 +443,14 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
         }
 
         final CompoundTag requirements = effectsTag.getCompoundTag("requirements");
-        final ListTag<CompoundTag> terms;
-        if (requirements != null && (terms = requirements.getListTag("terms", CompoundTag.class)) != null) {
-            for (final CompoundTag term : terms) {
-                updateEnchantmentTerm(term);
-            }
+        if (requirements != null) {
+            updateEnchantmentTerm(requirements);
         }
     }
 
     public void updateEnchantmentTerm(final CompoundTag term) {
         final String condition = term.getString("condition");
-        if (Key.equals(condition, "all_of") || Key.equals(condition, "any_of")) {
-            final ListTag<CompoundTag> terms = term.getListTag("terms", CompoundTag.class);
-            if (terms != null) {
-                for (final CompoundTag childTerm : terms) {
-                    updateEnchantmentTerm(childTerm);
-                }
-            }
-        } else if (Key.equals(condition, "inverted")) {
+        if (Key.equals(condition, "inverted")) {
             final CompoundTag childTerm = term.getCompoundTag("term");
             if (childTerm != null) {
                 updateEnchantmentTerm(childTerm);
@@ -425,9 +459,17 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
             final CompoundTag predicate = term.getCompoundTag("predicate");
             if (predicate != null) {
                 updateType(predicate, "type", protocol.getMappingData().getEntityMappings());
+                updateType(predicate, "entity_type", protocol.getMappingData().getEntityMappings());
             }
         } else if (Key.equals(condition, "block_state_property")) {
             updateType(term, "block", protocol.getMappingData().getFullBlockMappings());
+        } else {
+            final ListTag<CompoundTag> terms = term.getListTag("terms", CompoundTag.class);
+            if (terms != null) {
+                for (final CompoundTag childTerm : terms) {
+                    updateEnchantmentTerm(childTerm);
+                }
+            }
         }
     }
 
@@ -453,6 +495,14 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
         }
 
         effect = Key.stripMinecraftNamespace(effect);
+        if (enchantmentEffectsToRemove.contains(effect)) {
+            // Replace with an empty all_of effect as a no-op
+            effectTag.clear();
+            effectTag.putString("type", "minecraft:all_of");
+            effectTag.put("effects", new ListTag<>(CompoundTag.class));
+            return;
+        }
+
         if (effect.equals("attribute")) {
             updateType(effectTag, "attribute", protocol.getMappingData().getAttributeMappings());
         } else if (effect.equals("spawn_particles")) {
@@ -488,6 +538,10 @@ public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewri
     }
 
     private void setMappedOrDummyId(final FullMappings mappings, final StringTag tag) {
+        if (Key.stripMinecraftNamespace(tag.getValue()).startsWith("#")) {
+            return;
+        }
+
         String mappedType = mappings.mappedIdentifier(tag.getValue());
         if (mappedType == null) {
             mappedType = mappings.mappedIdentifier(0); // Dummy
