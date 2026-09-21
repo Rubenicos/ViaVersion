@@ -91,6 +91,7 @@ import com.viaversion.viaversion.protocols.v1_9_1to1_9_3.Protocol1_9_1To1_9_3;
 import com.viaversion.viaversion.protocols.v1_9_3to1_10.Protocol1_9_3To1_10;
 import com.viaversion.viaversion.protocols.v1_9to1_9_1.Protocol1_9To1_9_1;
 import com.viaversion.viaversion.protocols.v26_1to26_2.Protocol26_1To26_2;
+import com.viaversion.viaversion.protocols.v26_2to26_3.Protocol26_2To26_3;
 import com.viaversion.viaversion.util.MathUtil;
 import com.viaversion.viaversion.util.Pair;
 import io.netty.buffer.ByteBuf;
@@ -121,7 +122,8 @@ import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class ProtocolManagerImpl implements ProtocolManager {
-    private static final Protocol BASE_PROTOCOL = new InitialBaseProtocol();
+    public static final AtomicInteger PROTOCOL_INDEX = new AtomicInteger();
+    private static final InitialBaseProtocol BASE_PROTOCOL = new InitialBaseProtocol();
 
     // Input Version -> Output Version & Protocol (Allows fast lookup)
     private final Object2ObjectMap<ProtocolVersion, Object2ObjectMap<ProtocolVersion, Protocol>> registryMap = new Object2ObjectOpenHashMap<>(32);
@@ -221,6 +223,7 @@ public class ProtocolManagerImpl implements ProtocolManager {
 
         registerProtocol(new Protocol1_21_11To26_1(), ProtocolVersion.v26_1, ProtocolVersion.v1_21_11);
         registerProtocol(new Protocol26_1To26_2(), ProtocolVersion.v26_2, ProtocolVersion.v26_1);
+        registerProtocol(new Protocol26_2To26_3(), ProtocolVersion.v26_3, ProtocolVersion.v26_2);
     }
 
     @Override
@@ -230,7 +233,7 @@ public class ProtocolManagerImpl implements ProtocolManager {
 
     @Override
     public void registerProtocol(Protocol protocol, List<ProtocolVersion> supportedClientVersion, ProtocolVersion serverVersion) {
-        // Set the server version on AbstractProtocol instances before initialization
+        // Set the server version and index on AbstractProtocol instances before initialization
         if (protocol instanceof AbstractProtocol<?, ?, ?, ?> abstractProtocol) {
             abstractProtocol.setServerVersion(serverVersion);
             abstractProtocol.setClientVersion(supportedClientVersion.stream().max(ProtocolVersion::compareTo).orElseThrow());
@@ -584,6 +587,11 @@ public class ProtocolManagerImpl implements ProtocolManager {
     @Override
     public boolean hasLoadedMappings() {
         return mappingsLoaded;
+    }
+
+    @Override
+    public int registeredProtocolCount() {
+        return PROTOCOL_INDEX.get();
     }
 
     public void shutdownLoaderExecutor() {

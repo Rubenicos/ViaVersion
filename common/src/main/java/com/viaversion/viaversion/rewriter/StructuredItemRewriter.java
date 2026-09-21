@@ -198,7 +198,7 @@ public class StructuredItemRewriter<C extends ClientboundPacketType, S extends S
     protected boolean isFirstServerbound(final UserConnection connection) {
         // Only actually cache the original item once in the final clientbound/first serverbound protocol
         for (final Protocol<?, ?, ?, ?> protocol : connection.getProtocolInfo().getPipeline().pipes()) {
-            if (connection.getItemHasher(protocol.getClass()) instanceof ItemHasherBase) {
+            if (!protocol.isBaseProtocol() && connection.getItemHasher(protocol) instanceof ItemHasherBase) {
                 return protocol.getClass() == this.protocol.getClass();
             }
         }
@@ -397,11 +397,11 @@ public class StructuredItemRewriter<C extends ClientboundPacketType, S extends S
     /**
      * Stores inconvertible data in a backup tag. Called before data component modification to the item.
      *
-     * @param connection    user connection
-     * @param item          item to save data for
-     * @param dataContainer item data container
+     * @param connection user connection
+     * @param item       item to save data for
+     * @param container  item data container
      */
-    protected void backupInconvertibleData(final UserConnection connection, final Item item, final StructuredDataContainer dataContainer, final CompoundTag backupTag) {
+    protected void backupInconvertibleData(final UserConnection connection, final Item item, final StructuredDataContainer container, final CompoundTag backupTag) {
     }
 
     /**

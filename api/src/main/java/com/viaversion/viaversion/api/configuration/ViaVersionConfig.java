@@ -508,7 +508,7 @@ public interface ViaVersionConfig extends Config {
     boolean cancelBlockSounds();
 
     /**
-     * Hides scoreboard numbers for 1.20.3+ clients on older server versions.
+     * Hides sidebar scoreboard numbers for 1.20.3+ clients on older server versions.
      *
      * @return true if enabled
      */
