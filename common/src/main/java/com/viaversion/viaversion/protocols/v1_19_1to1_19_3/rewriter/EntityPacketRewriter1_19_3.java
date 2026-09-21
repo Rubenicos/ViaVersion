@@ -162,7 +162,7 @@ public final class EntityPacketRewriter1_19_3 extends EntityRewriter<Clientbound
 
         filter().type(EntityTypes1_19_3.ENTITY).index(6).handler((event, data) -> {
             // Sitting pose added
-            final int pose = data.value();
+            final int pose = ((Number) data.value()).intValue();
             if (pose >= 10) {
                 data.setValue(pose + 1);
             }
